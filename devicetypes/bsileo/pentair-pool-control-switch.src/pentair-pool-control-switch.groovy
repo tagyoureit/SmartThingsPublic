@@ -59,18 +59,18 @@ def parse(String description) {
          createEvent(name: pair[0].trim(), value: pair[1].trim())
      }
      catch (java.lang.ArrayIndexOutOfBoundsException e) {
-           log.debug "Error! " + e   
+           if (debug) { log.debug  "Error! " + e    }
     }
 	
 }
 
 def onConfirmed() {
-    //log.debug("CONF ${device} turned on")
+    if (debug) { log.debug ("CONF ${device} turned on") }
 	sendEvent(name: "switch", value: "on", displayed:true)    
 }
 
 def offConfirmed() {
-	//log.debug("CONF ${device} turned off")
+	if (debug) { log.debug ("CONF ${device} turned off") }
 	sendEvent(name: "switch", value: "off", displayed:true)  
 }
 
@@ -85,11 +85,11 @@ def off() {
 }
 
 def setFriendlyName(name) {
-   //log.debug("Set FName to ${name}")
+   if (debug) { log.debug ("Set FName to ${name}") }
    sendEvent(name: "friendlyName", value: name, displayed:false)
 }
 
 def setCircuitFunction(name) {
-   //log.debug("Set CircuitFunction to ${name}")
+   if (debug) { log.debug ("Set CircuitFunction to ${name}") }
    sendEvent(name: "circuitFunction", value: name, displayed:false)
 }
