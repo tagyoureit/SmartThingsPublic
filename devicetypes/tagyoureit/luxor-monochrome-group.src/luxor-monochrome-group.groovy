@@ -15,8 +15,9 @@
 */
 metadata {
     definition (name: "Luxor Monochrome Group", namespace: "tagyoureit", author: "Russell Goldin") {
-        capability "Light"
+        capability "Switch"
         capability "Switch Level"
+        capability "Refresh"
     }
 
 
@@ -29,51 +30,32 @@ metadata {
         //reply "off": "switch:off"
     }
 
-    tiles {
-        multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true) {
-            tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "on", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", nextState:"turningOff"
-                attributeState "off", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState:"turningOn"
-                attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", nextState:"turningOff"
-                attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState:"turningOn"
-            }
-            //  tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
-            //     attributeState "power", label:'Power level: ${currentValue}W', icon: "st.Appliances.appliances17"
-            // }
-            tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-                attributeState "level", action:"switch level.setLevel"
-            }
-
+    tiles(scale: 2) {
+		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
+			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-single", backgroundColor:"#00A0DC", nextState:"turningOff"
+				attributeState "off", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState:"turningOn"
+				attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-single", backgroundColor:"#00A0DC", nextState:"turningOff"
+				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState:"turningOn"
+			}
+			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
+				attributeState "level", action:"switch level.setLevel"
+			}
+		}
+        
+        standardTile("refresh", "device.refresh", height: 1, width: 1, inactiveLabel: false) {
+            state "default", label: 'Refresh', action: "refresh.refresh", icon: "st.secondary.refresh-icon"
         }
+		
+        main(["switch"])
+        details(["switch","refresh"])
     }
 
-    /*   multiAttributeTile(name:"switch", type: "generic", width: 1, height: 1, canChangeIcon: true)  {
-tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-attributeState "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff", nextState: "turningOn"           
-attributeState "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821", nextState: "tuningOff"
-attributeState "turningOn", label:'${name}', icon:"st.switches.switch.on", backgroundColor:"#00a0dc", nextState: "on"
-attributeState "turningOff", label:'${name}', icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState: "off"
-}
-tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-attributeState("level", action:"music Player.setLevel")
-}
-}
-
-controlTile("levelSliderControl", "device.level", "slider", height: 1,
-width: 2, inactiveLabel: false, range:"(20..80)") {
-state "level", action:"switch level.setLevel"
-}
-}*/
-
-    details (["switch", "level"])
 }
 
 // parse events into attributes
 def parse(String description) {
     log.debug "Parsing '${description}'"
-    // TODO: handle 'switch' attribute
-    // TODO: handle 'level' attribute
-
 }
 
 // handle commands
@@ -163,19 +145,18 @@ def parseIlluminateGroup(physicalgraph.device.HubResponse hubResponse) {
         log.info "desiredIntensity = $state.desiredIntensity"
 
         if (state.desiredIntensity>0){
-            log.info "Light group ${getDataValue('group')} is now on with brightness ${getDataValue('intensity')}."
+            log.info "Light group ${getDataValue('group')} is now on with brightness $state.desiredIntensity."
             sendEvent(name: "switch", value: "on", displayed:true) 
-            // sendEvent(name: "switch level", value: state.desiredIntensity, displayed:true)
             sendEvent(name: "level", value: state.desiredIntensity)
         }
         else
         {
             log.info "Light group ${getDataValue('group')} is now off."
             sendEvent(name: "switch", value: "off", displayed:true) 
-            //sendEvent(name: "levelSliderControl", value: state.desiredIntensity, displayed:true)
             sendEvent(name: "level", value: state.desiredIntensity)
 
         }
+        parent.childRefresh()
     }
     else {
         log.info "Error from Luxor controller: ${hubResponse.json}"
@@ -191,10 +172,10 @@ def setValues() {
 
 
     def onOff = "off"
+	def inten = getDataValue("intensity") as Integer 
 
-
-    if (getDataValue("intensity")>0){ onOff="on"}
-    log.debug "set values $device ${getDataValue('intensity')}  $onOff"
+    if (inten>0){ onOff="on"}
+    log.debug "set values $device $inten  $onOff"
 	sendEvent(name: "switch", value: onOff , displayed:true) 
     // sendEvent(name: "switch level", value: state.desiredIntensity, displayed:true)
     log.debug "sent switch, now levels"
