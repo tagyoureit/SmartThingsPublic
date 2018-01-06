@@ -29,14 +29,106 @@ def debug() {
 }
 
 preferences {
-        section("Luxor ZD/ZDC Setup") {
-            input "luxorIP",title: "Enter IP Address of Luxor Controller", required: true
+    page(name: "setupInit")
+    page(name: "setupValidate")
+
+}
+
+
+
+def validateController(){
+    if (state.controllerDiscovered == "Not Started"){
+        log.info "Looking for Luxor Controller at $luxorIP with state $state.controllerDiscovered"
+
+        state.controllerDiscovered = "Pending"
+        hubGet("/ControllerName.json", null, "parseControllerName")
+    }
+    else {
+        log.debug "Not running validateController because it is already pending."
+    }
+}
+
+
+def setupValidate() {
+    log.debug "In SetupValidate with $state.controllerDiscovered"
+    def msg
+    def canInstall = false
+    def interval = 2
+    def progress
+    if (state.controllerDiscovered == "Not Started"){
+        log.debug "Setup has result: $state.controllerDiscovered"
+        validateController()
+        msg = "Status is $state.controllerDiscovered.  This page will refresh with updated status."
+        canInstall = false
+        interval = 2
+        progress = "Starting search"
+    }
+    else if (state.controllerDiscovered == "Pending") {
+    	didDiscover()
+        msg = "Status is $state.controllerDiscovered.  App is looking for the controller."
+        canInstall = false
+        interval = 2
+        progress = "Searching"
+    }
+    else if (state.controllerDiscovered == "Not Found") {
+        msg = "Status is $state.controllerDiscovered.  Please press the back button and re-enter the IP Address."
+        canInstall = false
+        interval = 120
+        progress = "Failed"
+    }
+    else if (state.controllerDiscovered == "Found") {
+        msg = "Found Luxor $state.controllerType controller '$state.controllerName'.  Ready to install. \n\nPlease wait ~30 seconds for groups and themes to show up after you click save."
+        canInstall = true
+        interval = 120
+        progress = "Success"
+    }
+   
+    def pageProperties = [
+        name:		"setupValidate",
+        title:		"Validation Page",
+        install:	canInstall,
+        refreshInterval: interval
+    ]
+
+    return dynamicPage(pageProperties) {
+        section(progress){
+            paragraph msg
         }
+    }
+
+
+}
+
+def setupInit() {
+    state.controllerDiscovered = "Not Started"
+    log.debug "in setupInit with states $state.controllerDiscovered"
+    def inputIP = [
+        name:			"luxorIP",
+        type:			"string",
+        title:			"Enter IP Address of Luxor Controller",
+        defaultValue:	"11.11.11.13",
+        required:		true
+    ]
+
+    def pageProperties = [
+        name:		"setupInit",
+        title:		"Luxor ZD/DZC Setup",
+        nextPage:   "setupValidate",
+        install:	false,
+        uninstall:  true
+    ]
+
+
+    return dynamicPage(pageProperties){
+        section{
+            input inputIP
+        }
+    }
 }
 
 def installed() {
     log.debug "Installed with settings: ${settings}"
-    //subscribe(location, null, parse, [filterEvents:false])
+
     initialize()
 }
 
@@ -48,9 +140,9 @@ def updated() {
 }
 
 def hubGet(def apiCommand, def body="{}", def _callback) {
-	def cb = [:]
+    def cb = [:]
     if (_callback) {
-    	cb["callback"] = _callback
+        cb["callback"] = _callback
     }
     def result = new physicalgraph.device.HubAction(
         method: "POST",
@@ -93,6 +185,9 @@ private getHostAddress() {
 }
 
 def parseControllerName(physicalgraph.device.HubResponse hubResponse) {
+    state.controllerDiscovered = "Found"
+    state.controllerMac = hubResponse.mac
+    state.controllerName = hubResponse.json.Controller
     log.debug "ControllerName response: ${hubResponse.json}"
     if (hubResponse.json.Controller.toLowerCase().contains("lxzdc")){
         log.info "Discovered LXZDC controller at $luxorIP"
@@ -103,11 +198,12 @@ def parseControllerName(physicalgraph.device.HubResponse hubResponse) {
         state.controllerType = "ZD"
     }
 
-    addControllerAsDevice(hubResponse.mac)
-    
+
+
 }
 
-def addControllerAsDevice(mac){
+def addControllerAsDevice(){
+    def mac = state.controllerMac
     def hub = location.hubs[0]
     def d = getChildDevices()?.find { it.deviceNetworkId == mac}
     if (d) {
@@ -127,23 +223,13 @@ def addControllerAsDevice(mac){
                                 "controllerPort"    : 80,
                                 "controllerType"	: state.controllerType
                             ]
-
                            ])
-
     }
     log.debug "Controller Device is $d"
 
 }
 
-def controllerTypeEnum() {
 
-    return [
-        "ZDC":["Group":"Grp",
-               "Intensity": "Inten"
-              ]
-    ]
-
-}
 
 def getChildDNI(name) {
     return mac + "-" + name
@@ -151,14 +237,23 @@ def getChildDNI(name) {
 
 
 def initialize() {
+    addControllerAsDevice()
 
-    state.luxorIP = settings.luxorIP
-    log.debug "Initializing Luxor Controller"
-    hubGet("/ControllerName.json", null, "parseControllerName")
 
 }
 
 
+def didDiscover(){
+    if (state.controllerDiscovered=="Pending"){
+        def error = "Luxor controller could not be discovered at $settings.luxorIP."
+        log.error "$error"
+        //sendPush(error)
+        state.controllerDiscovered = "Not Found"
+    }
+    else {
+        log.debug "In did discover, state should be found.  It is $state.controllerDiscovered."
+    }
+}
 
 
 
